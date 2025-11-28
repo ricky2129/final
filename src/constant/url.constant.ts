@@ -4,6 +4,7 @@ const TRACE_ASSIST_BASE_URL : string = import.meta.env.VITE_TRACE_ASSIST_URL;
 const TOIL_ASSIST_BASE_URL : string = import.meta.env.VITE_TOIL_ASSIST_URL;
 const DASHBOARD_ASSIST_BASE_URL : string = import.meta.env.VITE_DASHBOARD_ASSIST_URL;
 const DRIFT_ASSIST_BASE_URL : string = import.meta.env.VITE_DRIFT_ASSIST_URL;
+const DR_ASSIST_BASE_URL : string = import.meta.env.VITE_DR_ASSIST_URL;
 
 export const ApiUrl = {
   //Base URL
@@ -177,6 +178,13 @@ export const DriftAssistUrl = {
   GET_STORED_ANALYSIS: `${DRIFT_ASSIST_BASE_URL}/api/analyses`,
 };
 
+export const DRAssistUrl = {
+  CONNECT_CLOUD: `${DR_ASSIST_BASE_URL}/api/cloud/connect`,
+  ANALYZE_ARCHITECTURE: `${DR_ASSIST_BASE_URL}/api/architecture/analyze`,
+  GET_ANALYSIS_HISTORY: `${DR_ASSIST_BASE_URL}/api/analysis/history`,
+  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/reports/download`,
+};
+
 
 export const RouteUrl = {
   ONBOARDING: {
@@ -222,6 +230,7 @@ export const RouteUrl = {
     AGENT_INSTALATION_GUIDE:
       "/project/:project/application/:application/workflow/chaos-experiments/agent-installation-guide",
     DRIFT_ASSIST: "/project/:project/application/:application/workflow/drift-assist",
+    DR_ASSIST: "/project/:project/application/:application/workflow/dr-assist",
   },
 };
 
