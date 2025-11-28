@@ -46,6 +46,7 @@ import TraceAssistIcon from './trace-assist-icon.svg';
 import DashboardAssistIcon from './dashboard-assist-icon.svg';
 import SLOSLIIcon from './slo-icon.svg';
 import DriftAssistIcon from './drift-assist-icon.svg';
+import DRAssistIcon from './dr-assist-icon.svg';
 
 
 
@@ -98,5 +99,6 @@ export {
   TraceAssistIcon,
   DashboardAssistIcon,
   DriftAssistIcon,
+  DRAssistIcon,
   SLOSLIIcon,
 };

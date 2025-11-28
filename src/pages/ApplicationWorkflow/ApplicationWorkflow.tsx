@@ -19,6 +19,7 @@ import {
   TraceAssistIcon,
   DashboardAssistIcon,
   DriftAssistIcon,
+  DRAssistIcon,
   SLOSLIIcon,
 } from "assets";
 import { ConfigureGremlin, IconViewer, Loading, Text } from "components";
@@ -31,9 +32,10 @@ import { DriftAssist } from "pages/DriftAssist";
 import { TraceAssist } from "pages/TraceAssist";
 import { ToilAssist } from "pages/ToilAssist";
 import { DashboardAssist } from "pages/DashboardAssist";
-import { ApplicationCodescan } from "pages/ApplicationCodescan"; 
-import { ApplicationDiagnostics } from "pages/ApplicationDiagnostics";         
-import { SloSliRouteWrapper } from "pages/SLO-SLI"; 
+import { DRAssist } from "pages/DRAssist";
+import { ApplicationCodescan } from "pages/ApplicationCodescan";
+import { ApplicationDiagnostics } from "pages/ApplicationDiagnostics";
+import { SloSliRouteWrapper } from "pages/SLO-SLI";
 import { ChaosExperiments } from "pages/ChaosExperiments"; 
 
 const serviceMap: Record<string, string> = {
@@ -48,6 +50,7 @@ const serviceMap: Record<string, string> = {
   "trace-assist": "TraceAssist",
   "slo-sli": "SloSli",
   "drift-assist": "DriftAssist",
+  "dr-assist": "DRAssist",
 };
  
 const serviceMenuMap = {
@@ -98,6 +101,12 @@ const serviceMenuMap = {
     desc: "Detecting and Analyzing infrastructure drift",
     icon: DriftAssistIcon,
     route: RouteUrl.APPLICATIONS.DRIFT_ASSIST,
+  },
+  DRAssist: {
+    name: "DR Assist",
+    desc: "Disaster Recovery Readiness Analysis",
+    icon: DRAssistIcon,
+    route: RouteUrl.APPLICATIONS.DR_ASSIST,
   },
 };
  const servicePriorityMap: Record<string, number> = {
@@ -294,6 +303,7 @@ const ApplicationWorkflow: React.FC = () => {
               initialAwsCredentials={driftAssistState?.awsCredentials}
             />
           )}
+          {activeTool === "DRAssist" && <DRAssist onClose={() => setActiveTool("")} />}
           {activeTool === "TraceAssist" && <TraceAssist />}
           {activeTool === "ToilAssist" && <ToilAssist />}
           {activeTool === "DashboardAssist" && <DashboardAssist />}

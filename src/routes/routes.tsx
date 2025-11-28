@@ -173,6 +173,12 @@ const DashboardAssistWrapper = lazy(() =>
 );
  
 const DriftAssist = lazy(() => import("pages/DriftAssist"));
+
+const DRAssistWrapper = lazy(() =>
+  import("pages/DRAssist/DRAssistWrapper").then((m) => ({
+    default: m.default,
+  }))
+);
  
 const routes = createBrowserRouter([
   {
@@ -495,7 +501,18 @@ const routes = createBrowserRouter([
   handle: {
     crumb: () => "Drift Assist",
   },
-}
+},
+                          {
+                            path: "dr-assist",
+                            element: (
+                              <Suspense fallback={<Loading type="spinner" />}>
+                                <DRAssistWrapper />
+                              </Suspense>
+                            ),
+                            handle: {
+                              crumb: () => "DR Assist",
+                            },
+                          }
                         ],
                       },
                     ],
