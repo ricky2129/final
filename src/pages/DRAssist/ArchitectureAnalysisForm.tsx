@@ -55,7 +55,15 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
 
     try {
       const result = await analyzeFilesMutation.mutateAsync({
+        // Cloud provider details from Step 1
+        cloud_provider: connectionDetails.cloud_provider,
+        region: connectionDetails.region,
+        access_key: connectionDetails.access_key,
+        secret_key: connectionDetails.secret_key,
         openai_api_key: connectionDetails.openai_api_key,
+        tags: connectionDetails.tags,
+
+        // Files
         architecture_diagram: architectureDiagram[0].originFileObj as File,
         aws_inventory_file: inventoryFile[0].originFileObj as File,
         iac_files: iacFile.map(f => f.originFileObj as File),
@@ -75,7 +83,6 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
     try {
       await downloadReportMutation.mutateAsync({
         analysis_id: analysisResult.analysis_id,
-        analysis_data: analysisResult,
         format,
       });
       message.success(`Downloading ${format.toUpperCase()} report...`);

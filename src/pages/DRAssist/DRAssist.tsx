@@ -51,14 +51,14 @@ const DRAssist: React.FC<DRAssistProps> = ({ onClose }) => {
             onClick={() => setActiveView("connect")}
             disabled={!isConnected && activeView === "analyze"}
           >
-            1. Enter OpenAI Key
+            1. Cloud Connection
           </Button>
           <Button
             type={activeView === "analyze" ? "primary" : "default"}
             onClick={() => setActiveView("analyze")}
             disabled={!isConnected}
           >
-            2. Analyze Architecture
+            2. Upload & Analyze
           </Button>
         </Flex>
 
