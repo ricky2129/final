@@ -5,6 +5,7 @@ const TOIL_ASSIST_BASE_URL : string = import.meta.env.VITE_TOIL_ASSIST_URL;
 const DASHBOARD_ASSIST_BASE_URL : string = import.meta.env.VITE_DASHBOARD_ASSIST_URL;
 const DRIFT_ASSIST_BASE_URL : string = import.meta.env.VITE_DRIFT_ASSIST_URL;
 const DR_ASSIST_BASE_URL : string = import.meta.env.VITE_DR_ASSIST_URL;
+const DR_ASSIST_ANALYSIS_URL : string = import.meta.env.VITE_DR_ASSIST_ANALYSIS_URL;
 
 export const ApiUrl = {
   //Base URL
@@ -179,10 +180,11 @@ export const DriftAssistUrl = {
 };
 
 export const DRAssistUrl = {
-  CONNECT_CLOUD: `${DR_ASSIST_BASE_URL}/api/cloud/connect`,
-  ANALYZE_ARCHITECTURE: `${DR_ASSIST_BASE_URL}/api/architecture/analyze`,
-  GET_ANALYSIS_HISTORY: `${DR_ASSIST_BASE_URL}/api/analysis/history`,
-  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/reports/download`,
+  // Port 9200 - Analysis API
+  ANALYZE_ARCHITECTURE: `${DR_ASSIST_ANALYSIS_URL}/api/analyze-file-upload`,
+
+  // Port 9100 - Utility APIs
+  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/download-report`,
 };
 
 

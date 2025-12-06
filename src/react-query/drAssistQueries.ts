@@ -2,15 +2,20 @@ import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { QUERY_KEY } from "constant";
 
-const DR_ASSIST_BASE_URL = import.meta.env.VITE_DR_ASSIST_URL || "http://localhost:8000";
+// Port 9100 - Utility APIs
+const DR_ASSIST_BASE_URL = import.meta.env.VITE_DR_ASSIST_URL || "http://localhost:9100";
+
+// Port 9200 - Analysis API
+const DR_ASSIST_ANALYSIS_URL = import.meta.env.VITE_DR_ASSIST_ANALYSIS_URL || "http://localhost:9200";
 
 export const DRAssistUrl = {
-  ANALYZE_FILES: `${DR_ASSIST_BASE_URL}/api/analyze-file-upload`,
-  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/download-report`,
+  ANALYZE_FILES: `${DR_ASSIST_ANALYSIS_URL}/api/analyze-file-upload`, // Port 9200
+  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/download-report`,         // Port 9100
 };
 
 // ============================================
 // 1. Analyze Uploaded Files (Architecture + Inventory)
+// Uses Port 9200
 // ============================================
 export interface AnalyzeFilesRequest {
   openai_api_key: string;
@@ -64,6 +69,7 @@ export const useAnalyzeFiles = () => {
         });
       }
 
+      // Calls Port 9200
       const response = await axios.post(DRAssistUrl.ANALYZE_FILES, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -80,6 +86,7 @@ export const useAnalyzeFiles = () => {
 
 // ============================================
 // 2. Download Report
+// Uses Port 9100
 // ============================================
 export interface DownloadReportRequest {
   analysis_id: string;
@@ -91,6 +98,7 @@ export const useDownloadReport = () => {
   return useMutation({
     mutationKey: [QUERY_KEY.DR_ASSIST_DOWNLOAD_REPORT],
     mutationFn: async (data: DownloadReportRequest): Promise<Blob> => {
+      // Calls Port 9100
       const response = await axios.post(DRAssistUrl.DOWNLOAD_REPORT, data, {
         responseType: "blob",
       });
