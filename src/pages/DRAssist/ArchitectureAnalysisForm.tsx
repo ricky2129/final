@@ -10,6 +10,7 @@ import {
   Typography,
   Upload,
   message,
+  Divider,
 } from "antd";
 import {
   UploadOutlined,
@@ -20,19 +21,13 @@ import {
   CodeOutlined,
 } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
+import { useAnalyzeFiles, useDownloadReport, type AnalysisResult } from "react-query/drAssistQueries";
 
 const { Title, Text, Paragraph } = Typography;
 
 interface ArchitectureAnalysisFormProps {
   connectionDetails: any;
   onBack: () => void;
-}
-
-interface AnalysisResult {
-  drScore: number;
-  summary: string;
-  recommendations: string[];
-  reportUrl?: string;
 }
 
 export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> = ({
@@ -42,8 +37,10 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
   const [architectureDiagram, setArchitectureDiagram] = useState<UploadFile[]>([]);
   const [inventoryFile, setInventoryFile] = useState<UploadFile[]>([]);
   const [iacFile, setIacFile] = useState<UploadFile[]>([]);
-  const [loading, setLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+
+  const analyzeFilesMutation = useAnalyzeFiles();
+  const downloadReportMutation = useDownloadReport();
 
   const handleUpload = async () => {
     if (!architectureDiagram.length || !inventoryFile.length) {
@@ -51,52 +48,39 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
       return;
     }
 
-    setLoading(true);
+    if (!connectionDetails?.openai_api_key) {
+      message.error("OpenAI API key is missing. Please go back and validate your key.");
+      return;
+    }
 
     try {
-      // TODO: Replace with actual API call
-      // const formData = new FormData();
-      // formData.append("architecture_diagram", architectureDiagram[0].originFileObj as File);
-      // formData.append("inventory_file", inventoryFile[0].originFileObj as File);
-      // if (iacFile.length) {
-      //   formData.append("iac_file", iacFile[0].originFileObj as File);
-      // }
-      // formData.append("connection_details", JSON.stringify(connectionDetails));
-      //
-      // const response = await analyzeDRArchitecture(formData);
+      const result = await analyzeFilesMutation.mutateAsync({
+        openai_api_key: connectionDetails.openai_api_key,
+        architecture_diagram: architectureDiagram[0].originFileObj as File,
+        aws_inventory_file: inventoryFile[0].originFileObj as File,
+        iac_files: iacFile.map(f => f.originFileObj as File),
+      });
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2500));
-
-      const mockResult: AnalysisResult = {
-        drScore: 75,
-        summary:
-          "Your infrastructure shows good DR readiness with some areas for improvement. The architecture follows best practices for redundancy across multiple availability zones.",
-        recommendations: [
-          "Implement automated failover mechanisms for critical databases",
-          "Add cross-region replication for S3 buckets containing critical data",
-          "Configure automated backup schedules for RDS instances",
-          "Implement Infrastructure as Code for faster disaster recovery",
-          "Set up monitoring and alerting for replication lag",
-        ],
-        reportUrl: "/mock-dr-report.pdf",
-      };
-
-      setAnalysisResult(mockResult);
+      setAnalysisResult(result);
       message.success("Analysis completed successfully!");
-    } catch (error) {
-      message.error("Failed to analyze architecture");
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || "Failed to analyze architecture");
       console.error(error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleDownloadReport = () => {
-    if (analysisResult?.reportUrl) {
-      // TODO: Implement actual download
-      message.success("Downloading DR Summary Report...");
-      // window.open(analysisResult.reportUrl, "_blank");
+  const handleDownloadReport = async (format: "json" | "text" | "pdf") => {
+    if (!analysisResult) return;
+
+    try {
+      await downloadReportMutation.mutateAsync({
+        analysis_id: analysisResult.analysis_id,
+        analysis_data: analysisResult,
+        format,
+      });
+      message.success(`Downloading ${format.toUpperCase()} report...`);
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || "Failed to download report");
     }
   };
 
@@ -106,6 +90,21 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
       message.error("File must be smaller than 50MB!");
     }
     return false; // Prevent automatic upload
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "critical":
+        return "#ff4d4f";
+      case "high":
+        return "#ff7a45";
+      case "medium":
+        return "#ffa940";
+      case "low":
+        return "#52c41a";
+      default:
+        return "#d9d9d9";
+    }
   };
 
   return (
@@ -164,14 +163,14 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
                 onChange={({ fileList }) => setInventoryFile(fileList)}
                 beforeUpload={beforeUpload}
                 maxCount={1}
-                accept=".json,.csv,.xlsx"
+                accept=".json,.txt"
               >
                 <Button icon={<UploadOutlined />} block>
                   Choose a file...
                 </Button>
               </Upload>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Supported formats: JSON, CSV, XLSX (Max 50MB)
+                Supported formats: JSON, TXT (Max 50MB)
               </Text>
             </div>
 
@@ -185,7 +184,7 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
                 fileList={iacFile}
                 onChange={({ fileList }) => setIacFile(fileList)}
                 beforeUpload={beforeUpload}
-                maxCount={1}
+                multiple
                 accept=".tf,.yaml,.yml,.json"
               >
                 <Button icon={<UploadOutlined />} block>
@@ -193,7 +192,7 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
                 </Button>
               </Upload>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Supported formats: Terraform (.tf), CloudFormation (.yaml, .json) (Max 50MB)
+                Supported formats: Terraform (.tf), CloudFormation (.yaml, .json) (Max 50MB each)
               </Text>
             </div>
 
@@ -201,7 +200,7 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
               type="primary"
               size="large"
               block
-              loading={loading}
+              loading={analyzeFilesMutation.isPending}
               onClick={handleUpload}
               disabled={!architectureDiagram.length || !inventoryFile.length}
             >
@@ -217,37 +216,89 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
             <Flex justify="center" align="center" style={{ padding: "24px 0" }}>
               <Progress
                 type="dashboard"
-                percent={analysisResult.drScore}
+                percent={analysisResult.dr_score}
                 size={200}
                 strokeColor={{
-                  "0%": "#108ee9",
-                  "100%": "#87d068",
+                  "0%": "#ff4d4f",
+                  "50%": "#ffa940",
+                  "100%": "#52c41a",
                 }}
+                format={(percent) => `${percent}%`}
               />
             </Flex>
+            <Text type="secondary" style={{ display: "block", textAlign: "center" }}>
+              Analysis ID: {analysisResult.analysis_id}
+            </Text>
           </Card>
+
+          {/* Breakdown by Category */}
+          {analysisResult.breakdown && analysisResult.breakdown.length > 0 && (
+            <Card>
+              <Title level={4}>Score Breakdown</Title>
+              <Space direction="vertical" style={{ width: "100%" }} size="middle">
+                {analysisResult.breakdown.map((item, index) => (
+                  <div key={index}>
+                    <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
+                      <Text strong>{item.category}</Text>
+                      <Text style={{ color: getSeverityColor(item.severity) }}>
+                        {item.score}/{item.max_score}
+                      </Text>
+                    </Flex>
+                    <Progress
+                      percent={(item.score / item.max_score) * 100}
+                      strokeColor={getSeverityColor(item.severity)}
+                      showInfo={false}
+                    />
+                    {item.findings && item.findings.length > 0 && (
+                      <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+                        {item.findings.map((finding, idx) => (
+                          <li key={idx}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              {finding}
+                            </Text>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </Space>
+            </Card>
+          )}
 
           {/* Generative Summary */}
           <Card>
             <Title level={4}>Generative Summary</Title>
-            {analysisResult.summary ? (
-              <Paragraph>{analysisResult.summary}</Paragraph>
-            ) : (
-              <Paragraph type="secondary">
-                Upload your architecture to see a summary here.
-              </Paragraph>
-            )}
+            <Paragraph>{analysisResult.summary}</Paragraph>
 
-            {analysisResult.reportUrl && (
+            <Divider />
+
+            <Space>
               <Button
                 type="default"
                 icon={<DownloadOutlined />}
-                onClick={handleDownloadReport}
-                style={{ marginTop: 16 }}
+                onClick={() => handleDownloadReport("pdf")}
+                loading={downloadReportMutation.isPending}
               >
-                Download Summary
+                Download PDF
               </Button>
-            )}
+              <Button
+                type="default"
+                icon={<DownloadOutlined />}
+                onClick={() => handleDownloadReport("text")}
+                loading={downloadReportMutation.isPending}
+              >
+                Download Text
+              </Button>
+              <Button
+                type="default"
+                icon={<DownloadOutlined />}
+                onClick={() => handleDownloadReport("json")}
+                loading={downloadReportMutation.isPending}
+              >
+                Download JSON
+              </Button>
+            </Space>
           </Card>
 
           {/* Recommendations */}

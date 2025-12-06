@@ -1,115 +1,111 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { QUERY_KEY } from "constant";
 
-// TODO: Update these URLs once backend is ready
-const DR_ASSIST_BASE_URL = import.meta.env.VITE_DR_ASSIST_URL || "http://localhost:5000";
+const DR_ASSIST_BASE_URL = import.meta.env.VITE_DR_ASSIST_URL || "http://localhost:8000";
 
 export const DRAssistUrl = {
-  CONNECT_CLOUD: `${DR_ASSIST_BASE_URL}/api/cloud/connect`,
-  ANALYZE_ARCHITECTURE: `${DR_ASSIST_BASE_URL}/api/architecture/analyze`,
-  GET_ANALYSIS_HISTORY: `${DR_ASSIST_BASE_URL}/api/analysis/history`,
-  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/reports/download`,
+  ANALYZE_FILES: `${DR_ASSIST_BASE_URL}/api/analyze-file-upload`,
+  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/download-report`,
 };
 
-// Interface for cloud connection
-export interface CloudConnectionRequest {
-  cloud_provider: "aws" | "azure" | "gcp";
-  region: string;
-  access_key: string;
-  secret_key: string;
-  tags?: { key: string; value: string }[];
-}
-
-export interface CloudConnectionResponse {
-  success: boolean;
-  message: string;
-  connection_id: string;
-}
-
-// Interface for architecture analysis
-export interface AnalyzeArchitectureRequest {
-  connection_id: string;
+// ============================================
+// 1. Analyze Uploaded Files (Architecture + Inventory)
+// ============================================
+export interface AnalyzeFilesRequest {
+  openai_api_key: string;
   architecture_diagram: File;
-  inventory_file: File;
-  iac_file?: File;
+  aws_inventory_file: File;
+  iac_files?: File[];
+}
+
+export interface DRScoreBreakdown {
+  category: string;
+  score: number;
+  max_score: number;
+  findings: string[];
+  severity: "critical" | "high" | "medium" | "low";
 }
 
 export interface AnalysisResult {
-  dr_score: number;
-  summary: string;
-  recommendations: string[];
-  report_url: string;
   analysis_id: string;
+  dr_score: number; // Overall score (0-100)
+  summary: string;
+  breakdown: DRScoreBreakdown[];
+  recommendations: string[];
+  data_sources: {
+    architecture_diagram: string | null;
+    aws_inventory_file: string | null;
+    aws_inventory_size: number;
+    iac_files_count: number;
+    iac_content_size: number;
+  };
 }
 
-// Hook to connect cloud provider
-export const useConnectCloudProvider = () => {
-  return useMutation({
-    mutationKey: [QUERY_KEY.DR_ASSIST_CONNECT_CLOUD],
-    mutationFn: async (data: CloudConnectionRequest): Promise<CloudConnectionResponse> => {
-      // TODO: Replace with actual API call
-      const response = await axios.post(DRAssistUrl.CONNECT_CLOUD, data);
-      return response.data;
-    },
-    onError: (error) => {
-      console.error("Failed to connect cloud provider:", error);
-    },
-  });
-};
-
-// Hook to analyze architecture
-export const useAnalyzeArchitecture = () => {
+export const useAnalyzeFiles = () => {
   return useMutation({
     mutationKey: [QUERY_KEY.DR_ASSIST_ANALYZE],
-    mutationFn: async (data: AnalyzeArchitectureRequest): Promise<AnalysisResult> => {
-      // TODO: Replace with actual API call
+    mutationFn: async (data: AnalyzeFilesRequest): Promise<AnalysisResult> => {
       const formData = new FormData();
-      formData.append("connection_id", data.connection_id);
+
+      // Add OpenAI API key
+      formData.append("openai_api_key", data.openai_api_key);
+
+      // Add architecture diagram
       formData.append("architecture_diagram", data.architecture_diagram);
-      formData.append("inventory_file", data.inventory_file);
-      if (data.iac_file) {
-        formData.append("iac_file", data.iac_file);
+
+      // Add AWS inventory file
+      formData.append("aws_inventory_file", data.aws_inventory_file);
+
+      // Add IaC files if provided
+      if (data.iac_files && data.iac_files.length > 0) {
+        data.iac_files.forEach((file) => {
+          formData.append("iac_files", file);
+        });
       }
 
-      const response = await axios.post(DRAssistUrl.ANALYZE_ARCHITECTURE, formData, {
+      const response = await axios.post(DRAssistUrl.ANALYZE_FILES, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
+
       return response.data;
     },
     onError: (error) => {
-      console.error("Failed to analyze architecture:", error);
+      console.error("Failed to analyze files:", error);
     },
   });
 };
 
-// Hook to get analysis history
-export const useGetAnalysisHistory = (applicationId?: string) => {
-  return useQuery({
-    queryKey: [QUERY_KEY.DR_ASSIST_HISTORY, applicationId],
-    queryFn: async () => {
-      // TODO: Replace with actual API call
-      const response = await axios.get(
-        `${DRAssistUrl.GET_ANALYSIS_HISTORY}/${applicationId}`
-      );
-      return response.data;
-    },
-    enabled: !!applicationId,
-  });
-};
+// ============================================
+// 2. Download Report
+// ============================================
+export interface DownloadReportRequest {
+  analysis_id: string;
+  analysis_data: any;
+  format: "json" | "text" | "pdf";
+}
 
-// Hook to download report
 export const useDownloadReport = () => {
   return useMutation({
     mutationKey: [QUERY_KEY.DR_ASSIST_DOWNLOAD_REPORT],
-    mutationFn: async (analysisId: string): Promise<Blob> => {
-      // TODO: Replace with actual API call
-      const response = await axios.get(`${DRAssistUrl.DOWNLOAD_REPORT}/${analysisId}`, {
+    mutationFn: async (data: DownloadReportRequest): Promise<Blob> => {
+      const response = await axios.post(DRAssistUrl.DOWNLOAD_REPORT, data, {
         responseType: "blob",
       });
       return response.data;
+    },
+    onSuccess: (blob, variables) => {
+      // Auto-download the file
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `dr_analysis_${variables.analysis_id}.${variables.format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     },
     onError: (error) => {
       console.error("Failed to download report:", error);
