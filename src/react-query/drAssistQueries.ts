@@ -24,13 +24,14 @@ export const DRAssistUrl = {
 // API: POST /dr/dr_inventory
 // ============================================
 export interface SubmitInventoryRequest {
-  cloud_provider: string;
-  region: string;
-  access_key: string;
-  secret_key: string;
-  tags?: { key: string; value: string }[];
+  name: string;
   project_id?: string;
   application_id?: string;
+  aws_access_key: string;
+  aws_secret_key: string;
+  region: string;
+  output_name: string;
+  tags?: { key: string; value: string }[];
 }
 
 export interface SubmitInventoryResponse {
@@ -44,13 +45,14 @@ export const useSubmitInventory = () => {
     mutationKey: [QUERY_KEY.DR_ASSIST_SUBMIT_INVENTORY],
     mutationFn: async (data: SubmitInventoryRequest): Promise<SubmitInventoryResponse> => {
       const response = await axios.post(DRAssistUrl.SUBMIT_INVENTORY, {
-        cloud_provider: data.cloud_provider,
-        region: data.region,
-        access_key: data.access_key,
-        secret_key: data.secret_key,
-        tags: data.tags || [], // Can be empty
+        name: data.name,
         project_id: data.project_id,
         application_id: data.application_id,
+        aws_access_key: data.aws_access_key,
+        aws_secret_key: data.aws_secret_key,
+        region: data.region,
+        output_name: data.output_name,
+        tags: data.tags || [], // Can be empty
       });
 
       return response.data;

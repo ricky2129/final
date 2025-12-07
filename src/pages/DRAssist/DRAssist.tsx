@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 import { Button, Card, Col, Flex, Row, Typography } from "antd";
 import { CloudConnectionForm } from "./CloudConnectionForm";
 import { ArchitectureAnalysisForm } from "./ArchitectureAnalysisForm";
@@ -11,6 +12,12 @@ interface DRAssistProps {
 }
 
 const DRAssist: React.FC<DRAssistProps> = ({ onClose }) => {
+  const params = useParams();
+
+  // Extract project_id and application_id from URL parameters
+  const projectId = params.project;
+  const applicationId = params.application;
+
   const [activeView, setActiveView] = useState<"connect" | "analyze">("connect");
   const [isConnected, setIsConnected] = useState(false);
   const [connectionDetails, setConnectionDetails] = useState<any>(null);
@@ -68,6 +75,8 @@ const DRAssist: React.FC<DRAssistProps> = ({ onClose }) => {
             <CloudConnectionForm
               onSuccess={handleConnectionSuccess}
               existingConnection={connectionDetails}
+              projectId={projectId}
+              applicationId={applicationId}
             />
           )}
 

@@ -8,6 +8,8 @@ const { Option } = Select;
 interface CloudConnectionFormProps {
   onSuccess: (details: any) => void;
   existingConnection?: any;
+  projectId?: string;
+  applicationId?: string;
 }
 
 interface CloudTag {
@@ -18,6 +20,8 @@ interface CloudTag {
 export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
   onSuccess,
   existingConnection,
+  projectId,
+  applicationId,
 }) => {
   const [form] = Form.useForm();
   const [tags, setTags] = useState<CloudTag[]>(existingConnection?.tags || []);
@@ -62,12 +66,18 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
     try {
       const validTags = tags.filter(t => t.key && t.value);
 
+      // Generate inventory name
+      const inventoryName = `DR_Inventory_${values.cloud_provider}_${values.region}_${Date.now()}`;
+
       // Step 1: POST /dr/dr_inventory - Store & validate credentials
       const result = await submitInventoryMutation.mutateAsync({
-        cloud_provider: values.cloud_provider,
+        name: inventoryName,
+        project_id: projectId,
+        application_id: applicationId,
+        aws_access_key: values.access_key,
+        aws_secret_key: values.secret_key,
         region: values.region,
-        access_key: values.access_key,
-        secret_key: values.secret_key,
+        output_name: "aws_comprehensive_analysis",
         tags: validTags, // Can be empty []
       });
 
