@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import {
   Button,
@@ -22,7 +22,7 @@ import {
   CodeOutlined,
 } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
-import { useAnalyzeFiles, useDownloadReport, type AnalysisResult } from "react-query/drAssistQueries";
+import { useAnalyzeFiles, useDownloadReport, useSubmitOpenAIKey, type AnalysisResult } from "react-query/drAssistQueries";
 
 const { Title, Text, Paragraph } = Typography;
 

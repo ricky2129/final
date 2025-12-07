@@ -86,15 +86,20 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
       const inventoryId = result.inventory_id || result.id || result._id || result;
 
       // Step 2: Auto-register OpenAI key using bearer token
-      // TODO: Get bearer token from your auth system
-      const bearerToken = "your-bearer-token-here"; // This should come from authenticated user context
+      const accessToken = localStorage.getItem("access_token");
+
+      if (!accessToken) {
+        console.error('[DR Assist] No access token found in localStorage');
+        message.error("Authentication token not found. Please log in again.");
+        return;
+      }
 
       try {
-        console.log('[DR Assist] Registering OpenAI key with bearer token...');
+        console.log('[DR Assist] Registering OpenAI key with access token...');
 
         const openAIKeyResult = await submitOpenAIKeyMutation.mutateAsync({
           name: `DR_OpenAI_Key_${Date.now()}`,
-          openai_key: bearerToken, // Using bearer token as OpenAI key
+          openai_key: accessToken, // Using access token from localStorage
           project_id: projectId ? parseInt(projectId) : undefined,
         });
 
