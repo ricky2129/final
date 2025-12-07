@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 import {
   Button,
   Card,
@@ -12,6 +13,7 @@ import {
   message,
   Divider,
   Alert,
+  Input,
 } from "antd";
 import {
   UploadOutlined,
@@ -22,7 +24,7 @@ import {
   CodeOutlined,
 } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
-import { useAnalyzeFiles, useDownloadReport, useStartComprehensiveAnalysis, type AnalysisResult } from "react-query/drAssistQueries";
+import { useAnalyzeFiles, useDownloadReport, useStartComprehensiveAnalysis, useSubmitOpenAIKey, type AnalysisResult } from "react-query/drAssistQueries";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -35,12 +37,19 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
   connectionDetails,
   onBack,
 }) => {
+  const params = useParams();
+  const projectId = params.project;
+  const applicationId = params.application;
+
+  const [openaiKey, setOpenaiKey] = useState<string>("");
+  const [openaiKeyId, setOpenaiKeyId] = useState<number | null>(null);
   const [architectureDiagram, setArchitectureDiagram] = useState<UploadFile[]>([]);
   const [inventoryFile, setInventoryFile] = useState<UploadFile[]>([]);
   const [iacFile, setIacFile] = useState<UploadFile[]>([]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [hasDownloadedZip, setHasDownloadedZip] = useState(false);
 
+  const submitOpenAIKeyMutation = useSubmitOpenAIKey();
   const analyzeFilesMutation = useAnalyzeFiles();
   const downloadReportMutation = useDownloadReport();
   const startAnalysisMutation = useStartComprehensiveAnalysis();
@@ -65,25 +74,60 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
     }
   };
 
-  const handleUpload = async () => {
-    if (!architectureDiagram.length || !inventoryFile.length) {
-      message.error("Please upload required files (Architecture Diagram and Inventory File)");
+  const handleSubmitOpenAIKey = async () => {
+    if (!openaiKey) {
+      message.error("Please enter OpenAI API key");
       return;
     }
 
+    console.log('[DR Assist] Submitting OpenAI key...');
+
+    try {
+      const result = await submitOpenAIKeyMutation.mutateAsync({
+        name: `DR_OpenAI_Key_${Date.now()}`,
+        openai_key: openaiKey,
+        project_id: projectId ? parseInt(projectId) : undefined,
+      });
+
+      console.log('[DR Assist] OpenAI key submitted successfully, ID:', result.id);
+      setOpenaiKeyId(result.id);
+      message.success("OpenAI API key registered successfully!");
+    } catch (error: any) {
+      console.error('[DR Assist] Failed to submit OpenAI key:', error);
+      message.error(error?.response?.data?.detail || "Failed to register OpenAI key");
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!openaiKeyId) {
+      message.error("Please submit OpenAI API key first");
+      return;
+    }
+
+    if (!architectureDiagram.length && !inventoryFile.length) {
+      message.error("Please upload at least one file (Architecture Diagram or Inventory File)");
+      return;
+    }
+
+    console.log('[DR Assist] Starting file analysis...');
+
     try {
       const result = await analyzeFilesMutation.mutateAsync({
-        // Files
-        architecture_diagram: architectureDiagram[0].originFileObj as File,
-        aws_inventory_file: inventoryFile[0].originFileObj as File,
+        name: `DR_Analysis_${Date.now()}`,
+        dr_openai_key_id: openaiKeyId,
+        project_id: projectId ? parseInt(projectId) : undefined,
+        application_id: applicationId ? parseInt(applicationId) : undefined,
+        architecture_diagram: architectureDiagram.length > 0 ? architectureDiagram[0].originFileObj as File : undefined,
+        aws_inventory_file: inventoryFile.length > 0 ? inventoryFile[0].originFileObj as File : undefined,
         iac_files: iacFile.length > 0 ? iacFile.map(f => f.originFileObj as File) : undefined,
       });
 
+      console.log('[DR Assist] Analysis completed:', result);
       setAnalysisResult(result);
       message.success("Analysis completed successfully!");
     } catch (error: any) {
+      console.error('[DR Assist] Analysis failed:', error);
       message.error(error?.response?.data?.detail || "Failed to analyze architecture");
-      console.error(error);
     }
   };
 
@@ -143,30 +187,63 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
             Then upload them below to get your DR score.
           </Paragraph>
 
-          {/* Step 1: Download ZIP */}
+          {/* Step 1: OpenAI API Key */}
           <Alert
-            message="Step 1: Download Inventory & Diagram"
-            description="Click below to download a ZIP file containing your architecture diagram and AWS inventory file."
+            message="Step 1: Register OpenAI API Key"
+            description="Enter your OpenAI API key to enable AI-powered analysis."
             type="info"
             showIcon
-            style={{ marginBottom: 24 }}
+            style={{ marginBottom: 16 }}
           />
 
-          <Button
-            type="primary"
-            size="large"
-            icon={<DownloadOutlined />}
-            loading={startAnalysisMutation.isPending}
-            onClick={handleDownloadZip}
-            block
-            style={{ marginBottom: 24 }}
-          >
-            Download ZIP File
-          </Button>
+          <Space direction="vertical" style={{ width: "100%", marginBottom: 24 }}>
+            <Input.Password
+              size="large"
+              placeholder="Enter OpenAI API key (sk-...)"
+              value={openaiKey}
+              onChange={(e) => setOpenaiKey(e.target.value)}
+              disabled={!!openaiKeyId}
+            />
+            <Button
+              type="primary"
+              size="large"
+              loading={submitOpenAIKeyMutation.isPending}
+              onClick={handleSubmitOpenAIKey}
+              block
+              disabled={!!openaiKeyId}
+            >
+              {openaiKeyId ? "OpenAI Key Registered ✓" : "Register OpenAI Key"}
+            </Button>
+          </Space>
+
+          {openaiKeyId && (
+            <>
+              {/* Step 2: Download ZIP */}
+              <Alert
+                message="Step 2: Download Inventory & Diagram"
+                description="Click below to download a ZIP file containing your architecture diagram and AWS inventory file."
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+
+              <Button
+                type="primary"
+                size="large"
+                icon={<DownloadOutlined />}
+                loading={startAnalysisMutation.isPending}
+                onClick={handleDownloadZip}
+                block
+                style={{ marginBottom: 24 }}
+              >
+                Download ZIP File
+              </Button>
+            </>
+          )}
 
           {hasDownloadedZip && (
             <Alert
-              message="Step 2: Upload Files for Analysis"
+              message="Step 3: Upload Files for Analysis"
               description="Extract the downloaded ZIP file and upload the architecture diagram and inventory file below."
               type="success"
               showIcon
