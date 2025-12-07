@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button, Card, Form, Input, Select, Space, message } from "antd";
-import { PlusOutlined, DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
-import { useSubmitInventory, useStartComprehensiveAnalysis } from "react-query/drAssistQueries";
+import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { useSubmitInventory } from "react-query/drAssistQueries";
 
 const { Option } = Select;
 
@@ -25,11 +25,8 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [tags, setTags] = useState<CloudTag[]>(existingConnection?.tags || []);
-  const [inventoryId, setInventoryId] = useState<string | null>(existingConnection?.inventory_id || null);
-  const [isConnected, setIsConnected] = useState<boolean>(!!existingConnection);
 
   const submitInventoryMutation = useSubmitInventory();
-  const startAnalysisMutation = useStartComprehensiveAnalysis();
 
   const cloudProviders = [
     { value: "aws", label: "Amazon Web Services (AWS)" },
@@ -81,45 +78,23 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
         tags: validTags, // Can be empty []
       });
 
-      if (result.success && result.inventory_id) {
-        message.success(result.message || "Cloud credentials validated successfully!");
-        setInventoryId(result.inventory_id);
-        setIsConnected(true);
+      // API returned 200 OK - credentials validated successfully
+      message.success("Cloud credentials validated successfully! Redirecting to upload section...");
 
-        // Automatically redirect to Upload & Analyze section
-        onSuccess({
-          ...values,
-          tags: validTags,
-          inventory_id: result.inventory_id,
-        });
-      } else {
-        message.error(result.message || "Failed to validate credentials");
-      }
+      // Extract inventory_id from response (could be in result.inventory_id or result.id or result._id)
+      const inventoryId = result.inventory_id || result.id || result._id || result;
+
+      // Automatically redirect to Upload & Analyze section
+      onSuccess({
+        ...values,
+        tags: validTags,
+        inventory_id: typeof inventoryId === 'object' ? JSON.stringify(inventoryId) : inventoryId,
+      });
     } catch (error: any) {
       // Will show errors like "Invalid credentials", "Unauthorized", etc.
       const errorMessage = error?.response?.data?.detail ||
                           error?.response?.data?.message ||
                           "Failed to validate cloud credentials";
-      message.error(errorMessage);
-    }
-  };
-
-  const handleDownloadInventory = async () => {
-    if (!inventoryId) {
-      message.error("Please validate credentials first");
-      return;
-    }
-
-    try {
-      // Step 2: POST /dr/start-comprehensive-analysis/ - Download ZIP
-      await startAnalysisMutation.mutateAsync({
-        inventory_id: inventoryId,
-      });
-      message.success("Inventory ZIP downloaded successfully!");
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail ||
-                          error?.response?.data?.message ||
-                          "Failed to generate inventory";
       message.error(errorMessage);
     }
   };
@@ -215,31 +190,15 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
         </Form.Item>
 
         <Form.Item>
-          <Space direction="vertical" style={{ width: "100%" }}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              size="large"
-              loading={submitInventoryMutation.isPending}
-              block
-              disabled={isConnected}
-            >
-              {isConnected ? "Connected ✓" : "Connect & Validate"}
-            </Button>
-
-            {isConnected && inventoryId && (
-              <Button
-                type="default"
-                size="large"
-                icon={<DownloadOutlined />}
-                loading={startAnalysisMutation.isPending}
-                onClick={handleDownloadInventory}
-                block
-              >
-                Download Inventory ZIP
-              </Button>
-            )}
-          </Space>
+          <Button
+            type="primary"
+            htmlType="submit"
+            size="large"
+            loading={submitInventoryMutation.isPending}
+            block
+          >
+            Connect & Validate
+          </Button>
         </Form.Item>
       </Form>
     </Card>
