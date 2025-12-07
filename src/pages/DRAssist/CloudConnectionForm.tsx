@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Button, Card, Form, Input, Select, Space, message } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { useSubmitInventory } from "react-query/drAssistQueries";
 
 const { Option } = Select;
 
@@ -19,8 +20,9 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
   existingConnection,
 }) => {
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
   const [tags, setTags] = useState<CloudTag[]>(existingConnection?.tags || []);
+
+  const submitInventoryMutation = useSubmitInventory();
 
   const cloudProviders = [
     { value: "aws", label: "Amazon Web Services (AWS)" },
@@ -54,26 +56,39 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
   };
 
   const handleSubmit = async (values: any) => {
-    setLoading(true);
-
     try {
       const validTags = tags.filter(t => t.key && t.value);
 
-      // Save connection details and move to next step
-      message.success("Cloud provider details saved! Please proceed to upload files.");
-
-      onSuccess({
+      // Call POST /dr/dr_inventory
+      // This triggers: ResSuite → /start-comprehensive-analysis/ → /generate-analysis/
+      const result = await submitInventoryMutation.mutateAsync({
         cloud_provider: values.cloud_provider,
         region: values.region,
         access_key: values.access_key,
         secret_key: values.secret_key,
         openai_api_key: values.openai_api_key,
-        tags: validTags,
+        tags: validTags, // Can be empty []
       });
+
+      if (result.success) {
+        message.success(result.message || "Cloud credentials validated! Inventory discovery started.");
+
+        // Pass all details including inventory_id to next step
+        onSuccess({
+          ...values,
+          tags: validTags,
+          inventory_id: result.inventory_id,
+          job_id: result.job_id,
+        });
+      } else {
+        message.error(result.message || "Failed to validate credentials");
+      }
     } catch (error: any) {
-      message.error("Failed to save connection details");
-    } finally {
-      setLoading(false);
+      // Will show errors like "Invalid credentials", "Unauthorized", etc.
+      const errorMessage = error?.response?.data?.detail ||
+                          error?.response?.data?.message ||
+                          "Failed to validate cloud credentials";
+      message.error(errorMessage);
     }
   };
 
@@ -170,6 +185,9 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
               Add Tag
             </Button>
           </Space>
+          <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
+            Tags are optional. If omitted, all resources in the account/region will be discovered.
+          </div>
         </Form.Item>
 
         <Form.Item>
@@ -177,7 +195,7 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
             type="primary"
             htmlType="submit"
             size="large"
-            loading={loading}
+            loading={submitInventoryMutation.isPending}
             block
           >
             Connect & Submit

@@ -2,33 +2,85 @@ import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { QUERY_KEY } from "constant";
 
-// Port 9100 - ResSuite Backend (manages users, projects, DB, security)
+// Port 9100 - ResSuite Backend
 const DR_ASSIST_BASE_URL = import.meta.env.VITE_DR_ASSIST_URL || "http://localhost:9100";
 
-// Note: Port 9200 (DR Score Backend) is called by ResSuite Backend, not directly from frontend
-
 export const DRAssistUrl = {
-  // ResSuite Backend endpoints (Port 9100)
-  ANALYZE_FILES: `${DR_ASSIST_BASE_URL}/api/dr-assist/analyze`,      // ResSuite → DR Score
-  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/dr-assist/download`,   // ResSuite → DR Score
+  // Step 1: Submit credentials and validate (triggers inventory discovery)
+  SUBMIT_INVENTORY: `${DR_ASSIST_BASE_URL}/dr/dr_inventory`,
+
+  // Step 2: Analyze uploaded files with DR Score Backend
+  ANALYZE_FILES: `${DR_ASSIST_BASE_URL}/api/dr-assist/analyze`,
+
+  // Download report
+  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/dr-assist/download`,
 };
 
 // ============================================
-// 1. Analyze Uploaded Files
-// Flow: Frontend → ResSuite Backend (9100) → DR Score Backend (9200)
+// 1. Submit Cloud Credentials & Trigger Inventory Discovery
+// Flow: Frontend → ResSuite (/dr/dr_inventory) → /start-comprehensive-analysis/ → /generate-analysis/
 // ============================================
-export interface AnalyzeFilesRequest {
-  // Cloud provider details
+export interface SubmitInventoryRequest {
   cloud_provider: string;
   region: string;
   access_key: string;
   secret_key: string;
   openai_api_key: string;
   tags?: { key: string; value: string }[];
+  project_id?: string;
+  application_id?: string;
+}
+
+export interface SubmitInventoryResponse {
+  success: boolean;
+  message: string;
+  job_id?: string;
+  inventory_id?: string;
+}
+
+export const useSubmitInventory = () => {
+  return useMutation({
+    mutationKey: [QUERY_KEY.DR_ASSIST_SUBMIT_INVENTORY],
+    mutationFn: async (data: SubmitInventoryRequest): Promise<SubmitInventoryResponse> => {
+      const response = await axios.post(DRAssistUrl.SUBMIT_INVENTORY, {
+        cloud_provider: data.cloud_provider,
+        region: data.region,
+        access_key: data.access_key,
+        secret_key: data.secret_key,
+        openai_api_key: data.openai_api_key,
+        tags: data.tags || [], // Can be empty
+        project_id: data.project_id,
+        application_id: data.application_id,
+      });
+
+      return response.data;
+    },
+    onError: (error: any) => {
+      console.error("Failed to submit inventory:", error);
+      // Will show error like "Invalid credentials" or "Unauthorized" if auth fails
+    },
+  });
+};
+
+// ============================================
+// 2. Analyze Uploaded Files
+// Flow: Frontend → ResSuite Backend → DR Score Backend
+// ============================================
+export interface AnalyzeFilesRequest {
+  // Reference to inventory job
+  inventory_id?: string;
+
+  // Cloud provider details (if not using inventory_id)
+  cloud_provider?: string;
+  region?: string;
+  access_key?: string;
+  secret_key?: string;
+  openai_api_key: string;
+  tags?: { key: string; value: string }[];
 
   // Files
   architecture_diagram: File;
-  aws_inventory_file: File;
+  aws_inventory_file?: File; // Optional if using inventory_id
   iac_files?: File[];
 
   // Context
@@ -69,11 +121,16 @@ export const useAnalyzeFiles = () => {
     mutationFn: async (data: AnalyzeFilesRequest): Promise<AnalysisResult> => {
       const formData = new FormData();
 
+      // Add inventory reference if available
+      if (data.inventory_id) {
+        formData.append("inventory_id", data.inventory_id);
+      }
+
       // Add cloud provider details
-      formData.append("cloud_provider", data.cloud_provider);
-      formData.append("region", data.region);
-      formData.append("access_key", data.access_key);
-      formData.append("secret_key", data.secret_key);
+      if (data.cloud_provider) formData.append("cloud_provider", data.cloud_provider);
+      if (data.region) formData.append("region", data.region);
+      if (data.access_key) formData.append("access_key", data.access_key);
+      if (data.secret_key) formData.append("secret_key", data.secret_key);
       formData.append("openai_api_key", data.openai_api_key);
 
       // Add tags
@@ -82,16 +139,14 @@ export const useAnalyzeFiles = () => {
       }
 
       // Add context
-      if (data.project_id) {
-        formData.append("project_id", data.project_id);
-      }
-      if (data.application_id) {
-        formData.append("application_id", data.application_id);
-      }
+      if (data.project_id) formData.append("project_id", data.project_id);
+      if (data.application_id) formData.append("application_id", data.application_id);
 
       // Add files
       formData.append("architecture_diagram", data.architecture_diagram);
-      formData.append("aws_inventory_file", data.aws_inventory_file);
+      if (data.aws_inventory_file) {
+        formData.append("aws_inventory_file", data.aws_inventory_file);
+      }
 
       // Add IaC files if provided
       if (data.iac_files && data.iac_files.length > 0) {
@@ -100,8 +155,7 @@ export const useAnalyzeFiles = () => {
         });
       }
 
-      // Call ResSuite Backend (Port 9100)
-      // ResSuite will forward to DR Score Backend (Port 9200)
+      // Call ResSuite Backend
       const response = await axios.post(DRAssistUrl.ANALYZE_FILES, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -117,8 +171,8 @@ export const useAnalyzeFiles = () => {
 };
 
 // ============================================
-// 2. Download Report
-// Flow: Frontend → ResSuite Backend (9100) → DR Score Backend (9200)
+// 3. Download Report
+// Flow: Frontend → ResSuite Backend → DR Score Backend
 // ============================================
 export interface DownloadReportRequest {
   analysis_id: string;
@@ -129,8 +183,6 @@ export const useDownloadReport = () => {
   return useMutation({
     mutationKey: [QUERY_KEY.DR_ASSIST_DOWNLOAD_REPORT],
     mutationFn: async (data: DownloadReportRequest): Promise<Blob> => {
-      // Call ResSuite Backend (Port 9100)
-      // ResSuite will proxy to DR Score Backend (Port 9200)
       const response = await axios.post(
         DRAssistUrl.DOWNLOAD_REPORT,
         {
