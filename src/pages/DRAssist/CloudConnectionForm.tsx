@@ -86,7 +86,7 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
         setInventoryId(result.inventory_id);
         setIsConnected(true);
 
-        // Pass all details including inventory_id to next step
+        // Automatically redirect to Upload & Analyze section
         onSuccess({
           ...values,
           tags: validTags,

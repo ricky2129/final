@@ -11,6 +11,7 @@ import {
   Upload,
   message,
   Divider,
+  Alert,
 } from "antd";
 import {
   UploadOutlined,
@@ -21,7 +22,7 @@ import {
   CodeOutlined,
 } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
-import { useAnalyzeFiles, useDownloadReport, type AnalysisResult } from "react-query/drAssistQueries";
+import { useAnalyzeFiles, useDownloadReport, useStartComprehensiveAnalysis, type AnalysisResult } from "react-query/drAssistQueries";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -38,9 +39,31 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
   const [inventoryFile, setInventoryFile] = useState<UploadFile[]>([]);
   const [iacFile, setIacFile] = useState<UploadFile[]>([]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [hasDownloadedZip, setHasDownloadedZip] = useState(false);
 
   const analyzeFilesMutation = useAnalyzeFiles();
   const downloadReportMutation = useDownloadReport();
+  const startAnalysisMutation = useStartComprehensiveAnalysis();
+
+  const handleDownloadZip = async () => {
+    if (!connectionDetails?.inventory_id) {
+      message.error("Inventory ID is missing. Please go back and connect again.");
+      return;
+    }
+
+    try {
+      await startAnalysisMutation.mutateAsync({
+        inventory_id: connectionDetails.inventory_id,
+      });
+      message.success("ZIP file downloaded! Please extract and upload the files below.");
+      setHasDownloadedZip(true);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail ||
+                          error?.response?.data?.message ||
+                          "Failed to download ZIP file";
+      message.error(errorMessage);
+    }
+  };
 
   const handleUpload = async () => {
     if (!architectureDiagram.length || !inventoryFile.length) {
@@ -50,17 +73,10 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
 
     try {
       const result = await analyzeFilesMutation.mutateAsync({
-        // Cloud provider details from Step 1
-        cloud_provider: connectionDetails.cloud_provider,
-        region: connectionDetails.region,
-        access_key: connectionDetails.access_key,
-        secret_key: connectionDetails.secret_key,
-        tags: connectionDetails.tags,
-
         // Files
         architecture_diagram: architectureDiagram[0].originFileObj as File,
         aws_inventory_file: inventoryFile[0].originFileObj as File,
-        iac_files: iacFile.map(f => f.originFileObj as File),
+        iac_files: iacFile.length > 0 ? iacFile.map(f => f.originFileObj as File) : undefined,
       });
 
       setAnalysisResult(result);
@@ -121,10 +137,42 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
 
       {!analysisResult ? (
         <Card>
-          <Title level={4}>Analyze Architecture</Title>
+          <Title level={4}>Upload & Analyze Architecture</Title>
           <Paragraph type="secondary">
-            Upload your files to get a comprehensive Disaster Recovery readiness score.
+            First, download the ZIP file containing your architecture diagram and inventory file.
+            Then upload them below to get your DR score.
           </Paragraph>
+
+          {/* Step 1: Download ZIP */}
+          <Alert
+            message="Step 1: Download Inventory & Diagram"
+            description="Click below to download a ZIP file containing your architecture diagram and AWS inventory file."
+            type="info"
+            showIcon
+            style={{ marginBottom: 24 }}
+          />
+
+          <Button
+            type="primary"
+            size="large"
+            icon={<DownloadOutlined />}
+            loading={startAnalysisMutation.isPending}
+            onClick={handleDownloadZip}
+            block
+            style={{ marginBottom: 24 }}
+          >
+            Download ZIP File
+          </Button>
+
+          {hasDownloadedZip && (
+            <Alert
+              message="Step 2: Upload Files for Analysis"
+              description="Extract the downloaded ZIP file and upload the architecture diagram and inventory file below."
+              type="success"
+              showIcon
+              style={{ marginBottom: 24 }}
+            />
+          )}
 
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             {/* Architecture Diagram */}
@@ -214,20 +262,15 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
           {/* DR Compliance Score */}
           <Card>
             <Title level={4}>DR Compliance Score</Title>
-            <Flex justify="center" align="center" style={{ padding: "24px 0" }}>
-              <Progress
-                type="dashboard"
-                percent={analysisResult.dr_score}
-                size={200}
-                strokeColor={{
-                  "0%": "#ff4d4f",
-                  "50%": "#ffa940",
-                  "100%": "#52c41a",
-                }}
-                format={(percent) => `${percent}%`}
-              />
+            <Flex justify="center" align="center" vertical style={{ padding: "24px 0" }}>
+              <div style={{ fontSize: 72, fontWeight: "bold", color: analysisResult.dr_score >= 4 ? "#52c41a" : analysisResult.dr_score >= 3 ? "#ffa940" : "#ff4d4f" }}>
+                {analysisResult.dr_score} / 5
+              </div>
+              <Text type="secondary" style={{ fontSize: 16, marginTop: 16 }}>
+                {analysisResult.dr_score >= 4 ? "Excellent" : analysisResult.dr_score >= 3 ? "Good" : analysisResult.dr_score >= 2 ? "Fair" : "Poor"}
+              </Text>
             </Flex>
-            <Text type="secondary" style={{ display: "block", textAlign: "center" }}>
+            <Text type="secondary" style={{ display: "block", textAlign: "center", marginTop: 16 }}>
               Analysis ID: {analysisResult.analysis_id}
             </Text>
           </Card>

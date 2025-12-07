@@ -109,24 +109,10 @@ export const useStartComprehensiveAnalysis = () => {
 // API: POST /dr/api/analyze-file-upload
 // ============================================
 export interface AnalyzeFilesRequest {
-  // Reference to inventory job
-  inventory_id?: string;
-
-  // Cloud provider details (if not using inventory_id)
-  cloud_provider?: string;
-  region?: string;
-  access_key?: string;
-  secret_key?: string;
-  tags?: { key: string; value: string }[];
-
   // Files
   architecture_diagram: File;
-  aws_inventory_file?: File; // Optional if using inventory_id
+  aws_inventory_file: File;
   iac_files?: File[];
-
-  // Context
-  project_id?: string;
-  application_id?: string;
 }
 
 export interface DRScoreBreakdown {
@@ -139,11 +125,11 @@ export interface DRScoreBreakdown {
 
 export interface AnalysisResult {
   analysis_id: string;
-  dr_score: number; // Overall score (0-100)
+  dr_score: number; // Overall score (0-5)
   summary: string;
-  breakdown: DRScoreBreakdown[];
+  breakdown?: DRScoreBreakdown[];
   recommendations: string[];
-  data_sources: {
+  data_sources?: {
     architecture_diagram: string | null;
     aws_inventory_file: string | null;
     aws_inventory_size: number;
@@ -162,31 +148,9 @@ export const useAnalyzeFiles = () => {
     mutationFn: async (data: AnalyzeFilesRequest): Promise<AnalysisResult> => {
       const formData = new FormData();
 
-      // Add inventory reference if available
-      if (data.inventory_id) {
-        formData.append("inventory_id", data.inventory_id);
-      }
-
-      // Add cloud provider details
-      if (data.cloud_provider) formData.append("cloud_provider", data.cloud_provider);
-      if (data.region) formData.append("region", data.region);
-      if (data.access_key) formData.append("access_key", data.access_key);
-      if (data.secret_key) formData.append("secret_key", data.secret_key);
-
-      // Add tags
-      if (data.tags && data.tags.length > 0) {
-        formData.append("tags", JSON.stringify(data.tags));
-      }
-
-      // Add context
-      if (data.project_id) formData.append("project_id", data.project_id);
-      if (data.application_id) formData.append("application_id", data.application_id);
-
       // Add files
       formData.append("architecture_diagram", data.architecture_diagram);
-      if (data.aws_inventory_file) {
-        formData.append("aws_inventory_file", data.aws_inventory_file);
-      }
+      formData.append("aws_inventory_file", data.aws_inventory_file);
 
       // Add IaC files if provided
       if (data.iac_files && data.iac_files.length > 0) {
