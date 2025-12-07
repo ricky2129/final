@@ -6,26 +6,28 @@ import { QUERY_KEY } from "constant";
 const DR_ASSIST_BASE_URL = import.meta.env.VITE_DR_ASSIST_URL || "http://localhost:9100";
 
 export const DRAssistUrl = {
-  // Step 1: Submit credentials and validate (triggers inventory discovery)
+  // Step 1: Store & validate cloud credentials
   SUBMIT_INVENTORY: `${DR_ASSIST_BASE_URL}/dr/dr_inventory`,
 
-  // Step 2: Analyze uploaded files with DR Score Backend
-  ANALYZE_FILES: `${DR_ASSIST_BASE_URL}/api/dr-assist/analyze`,
+  // Step 2: Connect to CSP, generate & download inventory/diagram ZIP
+  START_COMPREHENSIVE_ANALYSIS: `${DR_ASSIST_BASE_URL}/dr/start-comprehensive-analysis/`,
 
-  // Download report
-  DOWNLOAD_REPORT: `${DR_ASSIST_BASE_URL}/api/dr-assist/download`,
+  // Step 3: Upload files for DR score analysis
+  ANALYZE_FILES: `${DR_ASSIST_BASE_URL}/dr/api/analyze-file-upload`,
+
+  // Step 4: Download report
+  DOWNLOAD_REPORT: (analysisId: string) => `${DR_ASSIST_BASE_URL}/dr/api/download-report/${analysisId}`,
 };
 
 // ============================================
-// 1. Submit Cloud Credentials & Trigger Inventory Discovery
-// Flow: Frontend → ResSuite (/dr/dr_inventory) → /start-comprehensive-analysis/ → /generate-analysis/
+// 1. Store & Validate Cloud Credentials
+// API: POST /dr/dr_inventory
 // ============================================
 export interface SubmitInventoryRequest {
   cloud_provider: string;
   region: string;
   access_key: string;
   secret_key: string;
-  openai_api_key: string;
   tags?: { key: string; value: string }[];
   project_id?: string;
   application_id?: string;
@@ -34,7 +36,6 @@ export interface SubmitInventoryRequest {
 export interface SubmitInventoryResponse {
   success: boolean;
   message: string;
-  job_id?: string;
   inventory_id?: string;
 }
 
@@ -47,7 +48,6 @@ export const useSubmitInventory = () => {
         region: data.region,
         access_key: data.access_key,
         secret_key: data.secret_key,
-        openai_api_key: data.openai_api_key,
         tags: data.tags || [], // Can be empty
         project_id: data.project_id,
         application_id: data.application_id,
@@ -63,8 +63,48 @@ export const useSubmitInventory = () => {
 };
 
 // ============================================
-// 2. Analyze Uploaded Files
-// Flow: Frontend → ResSuite Backend → DR Score Backend
+// 2. Connect to CSP & Generate Inventory/Diagram ZIP
+// API: POST /dr/start-comprehensive-analysis/
+// ============================================
+export interface StartComprehensiveAnalysisRequest {
+  inventory_id: string;
+}
+
+export const useStartComprehensiveAnalysis = () => {
+  return useMutation({
+    mutationKey: [QUERY_KEY.DR_ASSIST_START_ANALYSIS],
+    mutationFn: async (data: StartComprehensiveAnalysisRequest): Promise<Blob> => {
+      const response = await axios.post(
+        DRAssistUrl.START_COMPREHENSIVE_ANALYSIS,
+        {
+          inventory_id: data.inventory_id,
+        },
+        {
+          responseType: "blob",
+        }
+      );
+      return response.data;
+    },
+    onSuccess: (blob) => {
+      // Auto-download the ZIP file
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `dr_inventory_${Date.now()}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    },
+    onError: (error: any) => {
+      console.error("Failed to start comprehensive analysis:", error);
+    },
+  });
+};
+
+// ============================================
+// 3. Upload Files for DR Score Analysis
+// API: POST /dr/api/analyze-file-upload
 // ============================================
 export interface AnalyzeFilesRequest {
   // Reference to inventory job
@@ -75,7 +115,6 @@ export interface AnalyzeFilesRequest {
   region?: string;
   access_key?: string;
   secret_key?: string;
-  openai_api_key: string;
   tags?: { key: string; value: string }[];
 
   // Files
@@ -131,7 +170,6 @@ export const useAnalyzeFiles = () => {
       if (data.region) formData.append("region", data.region);
       if (data.access_key) formData.append("access_key", data.access_key);
       if (data.secret_key) formData.append("secret_key", data.secret_key);
-      formData.append("openai_api_key", data.openai_api_key);
 
       // Add tags
       if (data.tags && data.tags.length > 0) {
@@ -183,13 +221,12 @@ export const useDownloadReport = () => {
   return useMutation({
     mutationKey: [QUERY_KEY.DR_ASSIST_DOWNLOAD_REPORT],
     mutationFn: async (data: DownloadReportRequest): Promise<Blob> => {
-      const response = await axios.post(
-        DRAssistUrl.DOWNLOAD_REPORT,
+      const response = await axios.get(
+        DRAssistUrl.DOWNLOAD_REPORT(data.analysis_id),
         {
-          analysis_id: data.analysis_id,
-          format: data.format,
-        },
-        {
+          params: {
+            format: data.format,
+          },
           responseType: "blob",
         }
       );

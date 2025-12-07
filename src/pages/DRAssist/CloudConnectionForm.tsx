@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button, Card, Form, Input, Select, Space, message } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { useSubmitInventory } from "react-query/drAssistQueries";
+import { PlusOutlined, DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
+import { useSubmitInventory, useStartComprehensiveAnalysis } from "react-query/drAssistQueries";
 
 const { Option } = Select;
 
@@ -21,8 +21,11 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [tags, setTags] = useState<CloudTag[]>(existingConnection?.tags || []);
+  const [inventoryId, setInventoryId] = useState<string | null>(existingConnection?.inventory_id || null);
+  const [isConnected, setIsConnected] = useState<boolean>(!!existingConnection);
 
   const submitInventoryMutation = useSubmitInventory();
+  const startAnalysisMutation = useStartComprehensiveAnalysis();
 
   const cloudProviders = [
     { value: "aws", label: "Amazon Web Services (AWS)" },
@@ -59,26 +62,25 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
     try {
       const validTags = tags.filter(t => t.key && t.value);
 
-      // Call POST /dr/dr_inventory
-      // This triggers: ResSuite → /start-comprehensive-analysis/ → /generate-analysis/
+      // Step 1: POST /dr/dr_inventory - Store & validate credentials
       const result = await submitInventoryMutation.mutateAsync({
         cloud_provider: values.cloud_provider,
         region: values.region,
         access_key: values.access_key,
         secret_key: values.secret_key,
-        openai_api_key: values.openai_api_key,
         tags: validTags, // Can be empty []
       });
 
-      if (result.success) {
-        message.success(result.message || "Cloud credentials validated! Inventory discovery started.");
+      if (result.success && result.inventory_id) {
+        message.success(result.message || "Cloud credentials validated successfully!");
+        setInventoryId(result.inventory_id);
+        setIsConnected(true);
 
         // Pass all details including inventory_id to next step
         onSuccess({
           ...values,
           tags: validTags,
           inventory_id: result.inventory_id,
-          job_id: result.job_id,
         });
       } else {
         message.error(result.message || "Failed to validate credentials");
@@ -92,6 +94,26 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
     }
   };
 
+  const handleDownloadInventory = async () => {
+    if (!inventoryId) {
+      message.error("Please validate credentials first");
+      return;
+    }
+
+    try {
+      // Step 2: POST /dr/start-comprehensive-analysis/ - Download ZIP
+      await startAnalysisMutation.mutateAsync({
+        inventory_id: inventoryId,
+      });
+      message.success("Inventory ZIP downloaded successfully!");
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail ||
+                          error?.response?.data?.message ||
+                          "Failed to generate inventory";
+      message.error(errorMessage);
+    }
+  };
+
   return (
     <Card className="cloud-connection-card">
       <Form
@@ -100,14 +122,6 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
         onFinish={handleSubmit}
         initialValues={existingConnection || { cloud_provider: "aws", region: "us-east-1" }}
       >
-        <Form.Item
-          label="OpenAI API Key"
-          name="openai_api_key"
-          rules={[{ required: true, message: "Please enter OpenAI API key" }]}
-        >
-          <Input.Password size="large" placeholder="Enter OpenAI API key (sk-...)" />
-        </Form.Item>
-
         <Form.Item
           label="Cloud Provider"
           name="cloud_provider"
@@ -191,15 +205,31 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
         </Form.Item>
 
         <Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            size="large"
-            loading={submitInventoryMutation.isPending}
-            block
-          >
-            Connect & Submit
-          </Button>
+          <Space direction="vertical" style={{ width: "100%" }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              size="large"
+              loading={submitInventoryMutation.isPending}
+              block
+              disabled={isConnected}
+            >
+              {isConnected ? "Connected ✓" : "Connect & Validate"}
+            </Button>
+
+            {isConnected && inventoryId && (
+              <Button
+                type="default"
+                size="large"
+                icon={<DownloadOutlined />}
+                loading={startAnalysisMutation.isPending}
+                onClick={handleDownloadInventory}
+                block
+              >
+                Download Inventory ZIP
+              </Button>
+            )}
+          </Space>
         </Form.Item>
       </Form>
     </Card>

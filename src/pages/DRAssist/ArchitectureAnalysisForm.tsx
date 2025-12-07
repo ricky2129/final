@@ -48,11 +48,6 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
       return;
     }
 
-    if (!connectionDetails?.openai_api_key) {
-      message.error("OpenAI API key is missing. Please go back and validate your key.");
-      return;
-    }
-
     try {
       const result = await analyzeFilesMutation.mutateAsync({
         // Cloud provider details from Step 1
@@ -60,7 +55,6 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
         region: connectionDetails.region,
         access_key: connectionDetails.access_key,
         secret_key: connectionDetails.secret_key,
-        openai_api_key: connectionDetails.openai_api_key,
         tags: connectionDetails.tags,
 
         // Files
