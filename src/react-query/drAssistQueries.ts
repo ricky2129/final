@@ -2,8 +2,8 @@ import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { QUERY_KEY } from "constant";
 
-// Port 9100 - ResSuite Backend
-const DR_ASSIST_BASE_URL = import.meta.env.VITE_DR_ASSIST_URL || "http://localhost:9100";
+// Port 8000 - ResSuite Backend (DR Assist APIs are on main backend)
+const DR_ASSIST_BASE_URL = import.meta.env.VITE_BASE_URL || "http://localhost:8000";
 
 export const DRAssistUrl = {
   // Step 1: Store & validate cloud credentials
