@@ -68,7 +68,7 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
     try {
       const result = await analyzeFilesMutation.mutateAsync({
         name: `DR_Analysis_${Date.now()}`,
-        dr_openai_key_id: openaiKeyId,
+        dr_OpenAi_key_id: openaiKeyId,
         project_id: projectId ? parseInt(projectId) : undefined,
         application_id: applicationId ? parseInt(applicationId) : undefined,
         architecture_diagram: architectureDiagram.length > 0 ? architectureDiagram[0].originFileObj as File : undefined,

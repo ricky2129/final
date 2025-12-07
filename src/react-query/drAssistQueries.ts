@@ -149,7 +149,7 @@ export const useStartComprehensiveAnalysis = () => {
 // ============================================
 export interface AnalyzeFilesRequest {
   name: string;
-  dr_openai_key_id: number; // OpenAI key ID from step 2
+  dr_OpenAi_key_id: number; // OpenAI key ID from step 2 (Note: Mixed case as per backend)
   project_id?: number;
   application_id?: number;
   aws_inventory_file?: File;
@@ -190,7 +190,7 @@ export const useAnalyzeFiles = () => {
     mutationFn: async (data: AnalyzeFilesRequest): Promise<AnalysisResult> => {
       console.log('[DR Assist] Analyzing files with data:', {
         name: data.name,
-        dr_openai_key_id: data.dr_openai_key_id,
+        dr_OpenAi_key_id: data.dr_OpenAi_key_id,
         project_id: data.project_id,
         application_id: data.application_id,
         has_inventory: !!data.aws_inventory_file,
@@ -202,7 +202,7 @@ export const useAnalyzeFiles = () => {
 
       // Add required fields
       formData.append("name", data.name);
-      formData.append("dr_openai_key_id", data.dr_openai_key_id.toString());
+      formData.append("dr_OpenAi_key_id", data.dr_OpenAi_key_id.toString());
 
       if (data.project_id) formData.append("project_id", data.project_id.toString());
       if (data.application_id) formData.append("application_id", data.application_id.toString());
