@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button, Card, Form, Input, Select, Space, message } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { useSubmitInventory } from "react-query/drAssistQueries";
+import { useSubmitInventory, useSubmitOpenAIKey } from "react-query/drAssistQueries";
 
 const { Option } = Select;
 
@@ -27,6 +27,7 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
   const [tags, setTags] = useState<CloudTag[]>(existingConnection?.tags || []);
 
   const submitInventoryMutation = useSubmitInventory();
+  const submitOpenAIKeyMutation = useSubmitOpenAIKey();
 
   const cloudProviders = [
     { value: "aws", label: "Amazon Web Services (AWS)" },
@@ -79,17 +80,39 @@ export const CloudConnectionForm: React.FC<CloudConnectionFormProps> = ({
       });
 
       // API returned 200 OK - credentials validated successfully
-      message.success("Cloud credentials validated successfully! Redirecting to upload section...");
+      console.log('[DR Assist] Cloud credentials validated, now registering OpenAI key...');
 
-      // Extract inventory_id from response (could be in result.inventory_id or result.id or result._id)
+      // Extract inventory_id from response
       const inventoryId = result.inventory_id || result.id || result._id || result;
 
-      // Automatically redirect to Upload & Analyze section
-      onSuccess({
-        ...values,
-        tags: validTags,
-        inventory_id: typeof inventoryId === 'object' ? JSON.stringify(inventoryId) : inventoryId,
-      });
+      // Step 2: Auto-register OpenAI key using bearer token
+      // TODO: Get bearer token from your auth system
+      const bearerToken = "your-bearer-token-here"; // This should come from authenticated user context
+
+      try {
+        console.log('[DR Assist] Registering OpenAI key with bearer token...');
+
+        const openAIKeyResult = await submitOpenAIKeyMutation.mutateAsync({
+          name: `DR_OpenAI_Key_${Date.now()}`,
+          openai_key: bearerToken, // Using bearer token as OpenAI key
+          project_id: projectId ? parseInt(projectId) : undefined,
+        });
+
+        console.log('[DR Assist] OpenAI key registered, ID:', openAIKeyResult.id);
+
+        message.success("Cloud credentials validated and OpenAI key registered! Redirecting to upload section...");
+
+        // Automatically redirect to Upload & Analyze section with openai_key_id
+        onSuccess({
+          ...values,
+          tags: validTags,
+          inventory_id: typeof inventoryId === 'object' ? JSON.stringify(inventoryId) : inventoryId,
+          openai_key_id: openAIKeyResult.id, // Pass OpenAI key ID to next step
+        });
+      } catch (openAIError: any) {
+        console.error('[DR Assist] Failed to register OpenAI key:', openAIError);
+        message.error("Failed to register OpenAI key. Please try again.");
+      }
     } catch (error: any) {
       // Will show errors like "Invalid credentials", "Unauthorized", etc.
       const errorMessage = error?.response?.data?.detail ||

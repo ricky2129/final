@@ -12,8 +12,6 @@ import {
   Upload,
   message,
   Divider,
-  Alert,
-  Input,
 } from "antd";
 import {
   UploadOutlined,
@@ -24,7 +22,7 @@ import {
   CodeOutlined,
 } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
-import { useAnalyzeFiles, useDownloadReport, useStartComprehensiveAnalysis, useSubmitOpenAIKey, type AnalysisResult } from "react-query/drAssistQueries";
+import { useAnalyzeFiles, useDownloadReport, type AnalysisResult } from "react-query/drAssistQueries";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -41,66 +39,22 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
   const projectId = params.project;
   const applicationId = params.application;
 
-  const [openaiKey, setOpenaiKey] = useState<string>("");
-  const [openaiKeyId, setOpenaiKeyId] = useState<number | null>(null);
   const [architectureDiagram, setArchitectureDiagram] = useState<UploadFile[]>([]);
   const [inventoryFile, setInventoryFile] = useState<UploadFile[]>([]);
   const [iacFile, setIacFile] = useState<UploadFile[]>([]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [hasDownloadedZip, setHasDownloadedZip] = useState(false);
 
-  const submitOpenAIKeyMutation = useSubmitOpenAIKey();
   const analyzeFilesMutation = useAnalyzeFiles();
   const downloadReportMutation = useDownloadReport();
-  const startAnalysisMutation = useStartComprehensiveAnalysis();
 
-  const handleDownloadZip = async () => {
-    if (!connectionDetails?.inventory_id) {
-      message.error("Inventory ID is missing. Please go back and connect again.");
-      return;
-    }
+  // Get openai_key_id from connectionDetails (passed from CloudConnectionForm)
+  const openaiKeyId = connectionDetails?.openai_key_id;
 
-    try {
-      await startAnalysisMutation.mutateAsync({
-        inventory_id: connectionDetails.inventory_id,
-      });
-      message.success("ZIP file downloaded! Please extract and upload the files below.");
-      setHasDownloadedZip(true);
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail ||
-                          error?.response?.data?.message ||
-                          "Failed to download ZIP file";
-      message.error(errorMessage);
-    }
-  };
-
-  const handleSubmitOpenAIKey = async () => {
-    if (!openaiKey) {
-      message.error("Please enter OpenAI API key");
-      return;
-    }
-
-    console.log('[DR Assist] Submitting OpenAI key...');
-
-    try {
-      const result = await submitOpenAIKeyMutation.mutateAsync({
-        name: `DR_OpenAI_Key_${Date.now()}`,
-        openai_key: openaiKey,
-        project_id: projectId ? parseInt(projectId) : undefined,
-      });
-
-      console.log('[DR Assist] OpenAI key submitted successfully, ID:', result.id);
-      setOpenaiKeyId(result.id);
-      message.success("OpenAI API key registered successfully!");
-    } catch (error: any) {
-      console.error('[DR Assist] Failed to submit OpenAI key:', error);
-      message.error(error?.response?.data?.detail || "Failed to register OpenAI key");
-    }
-  };
+  console.log('[DR Assist] ArchitectureAnalysisForm loaded with openai_key_id:', openaiKeyId);
 
   const handleUpload = async () => {
     if (!openaiKeyId) {
-      message.error("Please submit OpenAI API key first");
+      message.error("OpenAI key ID is missing. Please go back and reconnect.");
       return;
     }
 
@@ -109,7 +63,7 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
       return;
     }
 
-    console.log('[DR Assist] Starting file analysis...');
+    console.log('[DR Assist] Starting file analysis with openai_key_id:', openaiKeyId);
 
     try {
       const result = await analyzeFilesMutation.mutateAsync({
@@ -124,7 +78,7 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
 
       console.log('[DR Assist] Analysis completed:', result);
       setAnalysisResult(result);
-      message.success("Analysis completed successfully!");
+      message.success("Analysis completed successfully! DR Score: " + result.dr_score + "/5");
     } catch (error: any) {
       console.error('[DR Assist] Analysis failed:', error);
       message.error(error?.response?.data?.detail || "Failed to analyze architecture");
@@ -183,73 +137,8 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
         <Card>
           <Title level={4}>Upload & Analyze Architecture</Title>
           <Paragraph type="secondary">
-            First, download the ZIP file containing your architecture diagram and inventory file.
-            Then upload them below to get your DR score.
+            Upload your architecture diagram and AWS inventory files to get your DR score.
           </Paragraph>
-
-          {/* Step 1: OpenAI API Key */}
-          <Alert
-            message="Step 1: Register OpenAI API Key"
-            description="Enter your OpenAI API key to enable AI-powered analysis."
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-
-          <Space direction="vertical" style={{ width: "100%", marginBottom: 24 }}>
-            <Input.Password
-              size="large"
-              placeholder="Enter OpenAI API key (sk-...)"
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-              disabled={!!openaiKeyId}
-            />
-            <Button
-              type="primary"
-              size="large"
-              loading={submitOpenAIKeyMutation.isPending}
-              onClick={handleSubmitOpenAIKey}
-              block
-              disabled={!!openaiKeyId}
-            >
-              {openaiKeyId ? "OpenAI Key Registered ✓" : "Register OpenAI Key"}
-            </Button>
-          </Space>
-
-          {openaiKeyId && (
-            <>
-              {/* Step 2: Download ZIP */}
-              <Alert
-                message="Step 2: Download Inventory & Diagram"
-                description="Click below to download a ZIP file containing your architecture diagram and AWS inventory file."
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
-
-              <Button
-                type="primary"
-                size="large"
-                icon={<DownloadOutlined />}
-                loading={startAnalysisMutation.isPending}
-                onClick={handleDownloadZip}
-                block
-                style={{ marginBottom: 24 }}
-              >
-                Download ZIP File
-              </Button>
-            </>
-          )}
-
-          {hasDownloadedZip && (
-            <Alert
-              message="Step 3: Upload Files for Analysis"
-              description="Extract the downloaded ZIP file and upload the architecture diagram and inventory file below."
-              type="success"
-              showIcon
-              style={{ marginBottom: 24 }}
-            />
-          )}
 
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             {/* Architecture Diagram */}
@@ -328,9 +217,9 @@ export const ArchitectureAnalysisForm: React.FC<ArchitectureAnalysisFormProps> =
               block
               loading={analyzeFilesMutation.isPending}
               onClick={handleUpload}
-              disabled={!architectureDiagram.length || !inventoryFile.length}
+              disabled={!architectureDiagram.length && !inventoryFile.length}
             >
-              Analyze and Generate Score
+              Generate DR Score
             </Button>
           </Space>
         </Card>
